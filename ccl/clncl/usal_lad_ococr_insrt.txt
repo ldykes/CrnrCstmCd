@@ -1,0 +1,58 @@
+/*Cosign changed from none to ordering physician on action of order*/
+DROP PROGRAM usal_lad_ococr_insrt GO
+CREATE PROGRAM usal_lad_ococr_insrt
+ DECLARE actntpcd = f8 WITH constant (uar_get_code_by_cki ("CKI.CODEVALUE!3094" ) )
+ DECLARE nrsrvwflg = i2 WITH constant (0 )
+ DECLARE dctrcsgnflg = i2 WITH constant (0 )
+ DECLARE rxvrfflg = i2 WITH constant (0 )
+ DECLARE updtid = f8 WITH constant (123 )
+ DECLARE updttsk = i4 WITH constant (456 )
+ DECLARE updtapplctx = f8 WITH constant (789 )
+ DECLARE updtcnt = i4 WITH constant (0 )
+ DECLARE nwdctrcsgnflg = i2 WITH constant (1 )
+ DECLARE olddctrcsngflg = i2 WITH constant (0 )
+ DECLARE x = ui4
+ DECLARE cnt = ui4 WITH noconstant (0 )
+ RECORD ordctlg (
+   1 qual [* ]
+     2 ctlgcd = f8
+ )
+ SELECT INTO "nl:"
+  FROM (order_catalog oc ),
+   (order_catalog_review ocr )
+  WHERE (ocr.catalog_cd = Outerjoin(oc.catalog_cd ))
+  AND (oc.active_ind = 1 )
+  AND (ocr.catalog_cd = null )
+  HEAD REPORT
+   cnt = 0
+  DETAIL
+   cnt +=1 ,
+   IF ((mod (cnt ,10000 ) = 1 ) ) stat = alterlist (ordctlg->qual ,(cnt + 9999 ) )
+   ENDIF
+   ,ordctlg->qual[cnt ].ctlgcd = oc.catalog_cd
+  FOOT REPORT
+   stat = alterlist (ordctlg->qual ,cnt )
+  WITH nocounter ,maxrec = 5
+ ;end select
+ FOR (x = 1 TO cnt )
+  INSERT FROM (order_catalog_review ocr )
+   SET ocr.catalog_cd = ordctlg->qual[x ].ctlgcd ,
+    ocr.action_type_cd = actntpcd ,
+    ocr.nurse_review_flag = nrsrvwflg ,
+    ocr.doctor_cosign_flag = dctrcsgnflg ,
+    ocr.rx_verify_flag = rxvrfflg ,
+    ocr.updt_dt_tm = cnvtdatetime (curdate ,curtime ) ,
+    ocr.updt_id = updtid ,
+    ocr.updt_task = updttsk ,
+    ocr.updt_applctx = updtapplctx ,
+    ocr.updt_cnt = updtcnt
+   WITH counter
+  ;end insert
+ ENDFOR
+ UPDATE FROM (order_catalog_review ocr )
+  SET ocr.doctor_cosign_flag = nwdctrcsgnflg ,
+   ocr.updt_id = updtid
+  WHERE (ocr.doctor_cosign_flag = olddctrcsngflg )
+  AND (ocr.action_type_cd = actntpcd )
+ ;end update
+END GO

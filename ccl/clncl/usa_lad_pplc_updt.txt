@@ -1,0 +1,54 @@
+/*Replacing labcorp orders with inhouse lab ordes*/
+DROP PROGRAM usa_lad_pplc_updt GO
+CREATE PROGRAM usa_lad_pplc_updt
+ DECLARE i = ui4
+ DECLARE ocs_size = ui4 WITH noconstant (0 )
+ FREE RECORD charge_sched
+ RECORD ord_syn (
+   1 cnt [* ]
+     2 syn_id = f8
+ )
+ SELECT INTO "NL:"
+  ocs.synonym_id
+  FROM (order_catalog_synonym ocs )
+  WHERE (ocs.activity_subtype_cd = 273415125.00 )
+  AND (ocs.active_ind = 1 )
+  AND (ocs.active_status_cd = 188 )
+  ORDER BY ocs.mnemonic
+  HEAD ocs.synonym_id
+   ocs_size +=1 ,
+   IF ((mod (ocs_size ,10 ) = 1 ) ) stat = alterlist (ord_syn->cnt ,(ocs_size + 9 ) )
+   ENDIF
+  DETAIL
+   ord_syn->cnt[ocs_size ].syn_id = ocs.synonym_id
+  FOOT REPORT
+   stat = alterlist (ord_syn->cnt ,ocs_size )
+  WITH nocounter
+ ;end select
+ FOR (i = 1 TO ocs_size )
+  SET new_nbr = 0.0
+  SELECT INTO "nl:"
+   y = seq (reference_seq ,nextval ) "##################;rp0"
+   FROM (dual )
+   DETAIL
+    new_nbr = cnvtreal (y )
+   WITH format ,counter
+  ;end select
+  INSERT FROM (pathway_comp pc )
+   SET pc.pathway_comp_id = new_nbr ,
+    pc.parent_entity_id = ord_syn->cnt[i ].syn_id ,
+    pc.pathway_catalog_id = 1434535987.00 ,
+    pc.sequence = i ,
+    pc.comp_type_cd = 10736 ,
+    pc.parent_entity_name = "ORDER_CATALOG_SYNONYM" ,
+    pc.active_ind = 1 ,
+    pc.dcp_clin_cat_cd = 10576 ,
+    pc.updt_id = 123456 ,
+    pc.updt_task = 601011 ,
+    pc.updt_applctx = 1242513148.00 ,
+    pc.display_format_xml = '<?xml version="1.0"?>' ,
+    pc.pathway_uuid = "F0C90924-12F5-11EB-9AB1-96E912DB5400"
+   WITH nocounter
+  ;end insert
+ ENDFOR
+END GO

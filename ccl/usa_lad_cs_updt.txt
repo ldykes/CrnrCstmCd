@@ -1,0 +1,73 @@
+;Mass add new charge points to all bill_items of a certain specification.
+DROP PROGRAM usa_lad_cs_updt GO
+CREATE PROGRAM usa_lad_cs_updt
+ DECLARE i = ui4
+ DECLARE bi_size = ui4 WITH noconstant (0 )
+ RECORD charge_sched (
+   1 cnt [* ]
+     2 bill_item = f8
+     2 charge_level = f8
+     2 charge_point = f8
+ )
+ SELECT INTO "NL:"
+  bi.bill_item_id
+  FROM (bill_item bi ),
+   (bill_item_modifier bim )
+  WHERE (bi.ext_owner_cd IN (/*###*/) )
+  AND (bi.active_ind = 1 )
+  AND (bi.end_effective_dt_tm > sysdate )
+  AND (bim.bill_item_id = bi.bill_item_id )
+  AND (bim.active_ind = 1 )
+  AND (bim.end_effective_dt_tm > sysdate )
+  AND (bim.key1_id = /*#######*/ )
+  ORDER BY bi.bill_item_id
+  HEAD bi.bill_item_id
+   bi_size +=1 ,
+   IF ((mod (bi_size ,10 ) = 1 ) ) stat = alterlist (charge_sched->cnt ,(bi_size + 9 ) )
+   ENDIF
+  DETAIL
+   charge_sched->cnt[bi_size ].bill_item = bi.bill_item_id ,
+   charge_sched->cnt[bi_size ].charge_level = bim.key4_id ,
+   charge_sched->cnt[bi_size ].charge_point = bim.key2_id
+  FOOT REPORT
+   stat = alterlist (charge_sched->cnt ,bi_size )
+  WITH nocounter
+ ;end select
+ FOR (i = 1 TO bi_size )
+  SET new_nbr = 0.0
+  SELECT INTO "nl:"
+   y = seq (bill_item_seq ,nextval ) "##################;rp0"
+   FROM (dual )
+   DETAIL
+    new_nbr = cnvtreal (y )
+   WITH format ,counter
+  ;end select
+  INSERT FROM (bill_item_modifier b )
+   SET b.bill_item_mod_id = new_nbr ,
+    b.bill_item_id = charge_sched->cnt[i ].bill_item ,
+    b.bill_item_type_cd = /*#######*/ ,
+    b.key1_id = /*#######*/ ,
+    b.key2_id = charge_sched->cnt[i ].charge_point ,
+    b.key4_id = charge_sched->cnt[i ].charge_level ,
+    b.bim1_int = 0 ,
+    b.bim2_int = 0 ,
+    b.bim_ind = 0 ,
+    b.bim1_ind = 0 ,
+    b.bim1_nbr = 0 ,
+    b.key1_entity_name = "CODE_VALUE" ,
+    b.key2_entity_name = "CODE_VALUE" ,
+    b.key3_entity_name = "" ,
+    b.key4_entity_name = "" ,
+    b.key5_entity_name = "" ,
+    b.beg_effective_dt_tm = cnvtdatetime (sysdate ) ,
+    b.end_effective_dt_tm = cnvtdatetime ("31-DEC-2100 23:59:59" ) ,
+    b.active_ind = 1 ,
+    b.active_status_cd = 188 ,
+    b.active_status_dt_tm = cnvtdatetime (sysdate ) ,
+    b.updt_cnt = 0 ,
+    b.updt_dt_tm = cnvtdatetime (sysdate )
+   WITH nocounter
+  ;end insert
+ ENDFOR
+ FREE RECORD charge_sched
+END GO

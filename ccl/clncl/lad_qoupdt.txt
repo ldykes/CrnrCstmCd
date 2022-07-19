@@ -1,0 +1,66 @@
+/*Program to replace orders in quickorders folder*/
+DROP PROGRAM lad_qoupdt GO
+CREATE PROGRAM lad_qoupdt
+ DECLARE urnlysswthmcrscpcifindctd = f8 WITH protect ,constant (/*########*/ );synonym id to be replaced
+ DECLARE urnlysswthrflxcltr = f8 WITH protect ,constant (/*########*/ );replacing id
+ DECLARE sz = i4 WITH noconstant (0 )
+ FREE RECORD alsel
+ RECORD alsel (
+   1 qual [* ]
+     2 altslctid = f8
+     2 sqnc = i4
+     2 ordrsntncid = f8
+     2 chldaltslctid = f8
+     2 rfrnctskid = f8
+     2 pthwyctlgid = f8
+     2 pwctsynnymid = f8
+     2 rgmnctsynnymid = f8
+     2 lsttyp = i4
+ )
+ SELECT INTO "nl:"
+  FROM (alt_sel_list asl )
+  WHERE (asl.synonym_id = urnlysswthmcrscpcifindctd )
+  HEAD REPORT
+   cnt = 0
+  DETAIL
+   cnt +=1 ,
+   IF ((mod (cnt ,100 ) = 1 ) ) stat = alterlist (alsel->qual ,(cnt + 99 ) )
+   ENDIF
+   ,alsel->qual[cnt ].altslctid = asl.alt_sel_category_id ,
+   alsel->qual[cnt ].ordrsntncid = asl.order_sentence_id ,
+   alsel->qual[cnt ].chldaltslctid = asl.child_alt_sel_cat_id ,
+   alsel->qual[cnt ].rfrnctskid = asl.reference_task_id ,
+   alsel->qual[cnt ].pthwyctlgid = asl.pathway_catalog_id ,
+   alsel->qual[cnt ].pwctsynnymid = asl.pw_cat_synonym_id ,
+   alsel->qual[cnt ].rgmnctsynnymid = asl.regimen_cat_synonym_id ,
+   alsel->qual[cnt ].lsttyp = asl.list_type
+  FOOT REPORT
+   stat = alterlist (alsel->qual ,cnt )
+  WITH nocounter
+ ;end select
+ SET sz = size (alsel->qual ,5 )
+ FOR (num = 1 TO sz )
+  INSERT FROM (alt_sel_list alsl )
+   SET alsl.alt_sel_category_id = alsel->qual[num ].altslctid ,
+    alsl.sequence =
+    (SELECT
+     (max (asl2.sequence ) + 1 )
+     FROM (alt_sel_list asl2 )
+     WHERE (asl2.alt_sel_category_id = alsel->qual[num ].altslctid ) ) ,
+    alsl.order_sentence_id = alsel->qual[num ].ordrsntncid ,
+    alsl.list_type = alsel->qual[num ].lsttyp ,
+    alsl.synonym_id = urnlysswthrflxcltr ,
+    alsl.reference_task_id = alsel->qual[num ].rfrnctskid ,
+    alsl.updt_dt_tm = cnvtdatetime (sysdate ) ,
+    alsl.updt_id = 123 ,
+    alsl.updt_task = 456 ,
+    alsl.updt_applctx = 789 ,
+    alsl.updt_cnt = 0 ,
+    alsl.child_alt_sel_cat_id = alsel->qual[num ].chldaltslctid ,
+    alsl.pathway_catalog_id = alsel->qual[num ].pthwyctlgid ,
+    alsl.pw_cat_synonym_id = alsel->qual[num ].pwctsynnymid ,
+    alsl.regimen_cat_synonym_id = alsel->qual[num ].rgmnctsynnymid
+   WITH counter
+  ;end insert
+ ENDFOR
+END GO

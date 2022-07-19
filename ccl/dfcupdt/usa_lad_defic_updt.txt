@@ -1,0 +1,110 @@
+/*Used in conjunction with usa_lad_defic_dump in order to clear modify 'stuck' deficiencies*/
+DROP PROGRAM usa_lad_defic_updt :dba GO
+CREATE PROGRAM usa_lad_defic_updt :dba
+ FREE RECORD hpd
+ RECORD hpd (
+   1 cnt [* ]
+     2 id = f8
+ )
+ FREE RECORD ce
+ RECORD ce (
+   1 cnt [* ]
+     2 id = f8
+ )
+ FREE RECORD cce
+ RECORD cce (
+   1 cnt [* ]
+     2 id = f8
+ )
+ DECLARE hpd_size = f8 WITH noconstant (0 )
+ DECLARE ce_size = f8 WITH noconstant (0 )
+ DECLARE cce_size = f8 WITH noconstant (0 )
+ SELECT DISTINCT INTO "NL:"
+  FROM (encntr_alias ea ),
+   (clinical_event ce ),
+   (prsnl p ),
+   (him_pv_document hpd ),
+   (encounter e ),
+   (him_event_extension hee )
+  WHERE (ea.alias_pool_cd = 38707395.00 )
+  AND (e.encntr_id = ea.encntr_id )
+  AND (e.organization_id IN (900423.00 ,
+  912425.00 ) )
+  AND (ce.encntr_id = ea.encntr_id )
+  AND (ea.alias IN (/*FIN to be cleared*/) )
+  AND (ce.event_id = ce.parent_event_id )
+  AND (ce.record_status_cd != 190.00 )
+  AND (ce.result_status_cd IN (33 ) )
+  AND (ce.event_cd =
+  (SELECT
+   hee.event_cd
+   FROM (him_event_extension hee )
+   WHERE (hee.active_ind = 1 )
+   AND (hee.end_effective_dt_tm > sysdate ) ) )
+  AND (ce.valid_until_dt_tm > sysdate )
+  AND (p.person_id = ce.performed_prsnl_id )
+  AND (((p.active_ind = 0 ) ) OR ((((p.username = null ) ) OR ((((ce.performed_dt_tm < cnvtdate (
+   10012017 ) ) ) OR ((((p.position_cd = 282993683.00 ) ) OR ((p.person_id !=
+  (SELECT
+   p.person_id
+   FROM (prsnl p ),
+    (eem_prov_tax_reltn eptr ),
+    (provider_taxonomy pt )
+   WHERE (p.person_id = eptr.parent_entity_id )
+   AND (eptr.taxonomy_id = pt.taxonomy_id ) ) ) )) )) )) ))
+  AND (hpd.event_id = Outerjoin(ce.event_id ))
+  DETAIL
+   IF ((hpd.him_pv_document_id > 0 ) ) hpd_size +=1 ,stat = alterlist (hpd->cnt ,hpd_size ) ,hpd->
+    cnt[hpd_size ].id = hpd.him_pv_document_id
+   ENDIF
+   ,
+   IF ((ce.event_id > 0 ) ) ce_size +=1 ,stat1 = alterlist (ce->cnt ,ce_size ) ,ce->cnt[ce_size ].id
+    = ce.event_id
+   ENDIF
+   ,
+   IF ((ce.clinical_event_id > 0 ) ) cce_size +=1 ,stat2 = alterlist (cce->cnt ,cce_size ) ,cce->cnt[
+    cce_size ].id = ce.clinical_event_id
+   ENDIF
+  WITH nocounter
+ ;end select
+ FOR (i = 1 TO cnvtint (hpd_size ) )
+  UPDATE FROM (him_pv_document )
+   SET profile_status_cd = 0
+   WHERE (him_pv_document_id = hpd->cnt[i ].id )
+  ;end update
+ ENDFOR
+ FOR (j = 1 TO cnvtint (ce_size ) )
+  UPDATE FROM (clinical_event )
+   SET result_status_cd =
+    (SELECT DISTINCT
+     code_value
+     FROM (code_value )
+     WHERE (code_set = 8 )
+     AND (cdf_meaning = "INERROR" ) ) ,
+    record_status_cd =
+    (SELECT DISTINCT
+     code_value
+     FROM (code_value )
+     WHERE (code_set = 48 )
+     AND (cdf_meaning = "DELETED" ) )
+   WHERE (event_id = ce->cnt[j ].id )
+  ;end update
+ ENDFOR
+ FOR (n = 1 TO cnvtint (cce_size ) )
+  UPDATE FROM (clinical_event )
+   SET result_status_cd =
+    (SELECT DISTINCT
+     code_value
+     FROM (code_value )
+     WHERE (code_set = 8 )
+     AND (cdf_meaning = "AUTH" ) ) ,
+    record_status_cd =
+    (SELECT DISTINCT
+     code_value
+     FROM (code_value )
+     WHERE (code_set = 48 )
+     AND (cdf_meaning = "ACTIVE" ) )
+   WHERE (clinical_event_id = cce->cnt[n ].id )
+  ;end update
+ ENDFOR
+END GO

@@ -1,0 +1,50 @@
+/*Used in conjunction with usa_lad_defic_updt in order to clear modify 'stuck' deficiencies*/
+DROP PROGRAM usa_lad_defic_dump :dba GO
+CREATE PROGRAM usa_lad_defic_dump :dba
+ SET modify = filestream
+ SELECT DISTINCT INTO "defic.csv"
+  ea.alias ,
+  p.name_full_formatted ,
+  uar_get_code_display (ce.event_cd ) ,
+  uar_get_code_display (ce.result_status_cd ) ,
+  ce.performed_dt_tm
+  FROM (encntr_alias ea ),
+   (clinical_event ce ),
+   (prsnl p ),
+   (him_pv_document hpd ),
+   (encounter e ),
+   (him_event_extension hee )
+  WHERE (ea.alias_pool_cd = 38707395.00 )
+  AND (e.encntr_id = ea.encntr_id )
+  AND (e.organization_id IN (900423.00 ,
+  912425.00 ) )
+  AND (ce.encntr_id = ea.encntr_id )
+  AND (ce.event_id = ce.parent_event_id )
+  AND (ce.record_status_cd != 190.00 )
+  AND (ce.result_status_cd IN (33 ) )
+  AND (ce.event_cd =
+  (SELECT
+   hee.event_cd
+   FROM (him_event_extension hee )
+   WHERE (hee.active_ind = 1 )
+   AND (hee.end_effective_dt_tm > sysdate ) ) )
+  AND (ce.valid_until_dt_tm > sysdate )
+  AND (p.person_id = ce.performed_prsnl_id )
+  AND (((p.active_ind = 0 ) ) OR ((((p.username = null ) ) OR ((((ce.performed_dt_tm < cnvtdate (
+   10012017 ) ) ) OR ((((p.position_cd = 282993683.00 ) ) OR ((p.person_id !=
+  (SELECT
+   p.person_id
+   FROM (prsnl p ),
+    (eem_prov_tax_reltn eptr ),
+    (provider_taxonomy pt )
+   WHERE (p.person_id = eptr.parent_entity_id )
+   AND (eptr.taxonomy_id = pt.taxonomy_id ) ) ) )) )) )) ))
+  AND (hpd.event_id = Outerjoin(ce.event_id ))
+  ORDER BY ea.alias ,
+   p.name_full_formatted ,
+   uar_get_code_display (ce.event_cd ) ,
+   uar_get_code_display (ce.result_status_cd ) ,
+   ce.performed_dt_tm
+  WITH pcformat ('"' ,"," ,1 ) ,format = stream
+ ;end select
+END GO
